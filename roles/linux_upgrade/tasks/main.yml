@@ -1,0 +1,32 @@
+---
+# Detect Linux distribution and include the corresponding task(s)
+- name: Detect and display
+  debug:
+    msg: "Linux distribution and version for this host is: {{ ansible_distribution }} - {{ ansible_distribution_version }}"
+
+# 6.9 distros
+- name: Upgrade to CentOS 6.9
+  include_tasks: upgrade_to_centos_6.9.yml
+  when: ansible_distribution == "CentOS" and ansible_distribution_version < '6.9'
+
+- name: Upgrade RHEL 6.x to CentOS 6.9
+  include_tasks: upgrade_rhel_to_centos_6.9.yml
+  when: ansible_distribution == "RedHat" and ansible_distribution_version < '6.9'
+
+- name: Upgrade to OEL 6.9
+  include_tasks: upgrade_to_oel_6.9.yml
+  when: ansible_distribution == "Oracle" and ansible_distribution_version < '6.9'
+
+# 7.4 distros
+- name: Upgrade to CentOS 7.4
+  include_tasks: upgrade_to_centos_7.4.yml
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version == '7' and ansible_distribution_version < '7.4'
+
+- name: Upgrade RHEL 7.x to CentOS 7.4
+  include_tasks: upgrade_rhel_to_centos_7.4.yml
+  when: ansible_distribution == "RedHat" and ansible_distribution_major_version == '7' and ansible_distribution_version < '7.4'
+
+- name: Upgrade to OEL 7.4
+  include_tasks: upgrade_to_oel_7.4.yml
+  when: ansible_distribution == "Oracle" and ansible_distribution_major_version == '7' and ansible_distribution_version < '7.4'
+

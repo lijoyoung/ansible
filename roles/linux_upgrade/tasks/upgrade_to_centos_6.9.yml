@@ -1,0 +1,5 @@
+---
+- name: Upgrade to CentOS 6.9
+  debug:
+    msg: "Ansible distribution version for this host is:  {{ ansible_distribution_version }}"
+

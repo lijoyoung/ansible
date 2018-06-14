@@ -1,0 +1,17 @@
+#####################################################
+# CONFIGURE THESE VARIABLES PRIOR TO UPGRADE
+#####################################################
+# Katello registration variables
+LNAME: 'hostname --fqdn'
+KEY: oracle6.9
+REPO_DIR: '/etc/yum.repos.s/redhat.repo'
+
+
+
+
+#####################################################
+# DO NOT CHANGE CONFIGURATION BELOW THIS LINE
+#####################################################
+# Static variables that are global and unlikely to change
+
+

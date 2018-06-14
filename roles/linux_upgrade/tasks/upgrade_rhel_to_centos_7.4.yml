@@ -1,0 +1,5 @@
+---
+- name: Upgrade RHEL to CentOS 7.4
+  debug:
+    msg: "Ansible distribution version for this host is:  {{ ansible_distribution_version }}"
+

@@ -1,0 +1,133 @@
+---
+- name: Upgrade RHEL to CentOS 6.9
+  debug:
+    msg: "Linux distribution and version for this host is:  {{ ansible_distribution}} {{ ansible_distribution_version }}"
+
+# Unregister and Register to katello
+- name: Check if this host is already on version 6.9
+  shell: 'cat /etc/yum.repos.d/redhat-rhui.repo | grep centos6.9'
+  register: repo_result
+  failed_when: no
+
+- name: Unregister
+  command: "subscription-manager unregister"
+  when: repo_result.stdout == ""
+
+- name: Erase systemid
+  file: path=/etc/sysconfig/rhn/systemid state=absent
+  when: repo_result.stdout == ""
+
+- name: Yum clean
+  command: "yum clean all"
+  args:
+    warn: false
+  when: repo_result.stdout == ""
+
+# Replace with the correct package name
+- name: Find if katello rpm is installed
+  yum:
+    list: katello-ca-consumer-dscaprv01.corp.acxiom.net-1.0-1.noarch
+  register: rpm_list_result
+
+# Though this is not needed as ansible is idempotent
+- name: Install Katello
+  yum:
+    name: http://dscaprv01/pub/katello-ca-consumer-dscaprv01.corp.acxiom.net-1.0-1.noarch.rpm
+    state: present
+  when: rpm_list_result.results[0].yumstate != "installed" and repo_result.stdout == ""
+
+- name: Register with Katello
+  command: "subscription-manager register --org='acxiom' --name={{ LNAME }} --activationkey={{ KEY }}"
+  when: repo_result.stdout == ""
+
+- name: Makecache
+  command: "yum makecache"
+  when: repo_result.stdout == ""
+
+# Erase unwanted RHEL packages
+- name: Erase RHEL packages
+  command: "rpm -e --nodeps {{ item }}"
+  with_items:
+    - rhncfg-actions-5.10.74-8.el6sat.noarch
+    - rhncfg-5.10.74-8.el6sat.noarch
+    - rhncfg-client-5.10.74-8.el6sat.noarch
+    - rhel_6_post_A-1.0-2.x86_64
+    - rhel_post_B-1.0-2.noarch
+  when: ansible_distribution == "RedHat" and ansible_distribution_version < '6.9' and repo_result.stdout == "" 
+# though the above step is not required, as this task file itself runs only when host is on redhat
+
+# Backup files to be restored after upgrade
+- name: Backup files to be restored after upgrade
+  copy:
+    src: "{{ item }}"
+    dest: "{{ item }}.bak"
+    mode: preserve
+    remote_src: yes
+  with_items:
+    - /etc/pam.d/system-auth
+    - /etc/pam.d/password-auth
+    - /etc/issue.net
+    - /etc/issue
+    - /etc/motd
+    - /etc/security/access.conf
+  when: repo_result.stdout == ""
+
+- name: Stat rc.local file exists?
+  stat:
+    path: /etc/rc.local
+  register: rc_local_result
+  failed_when:
+    - rc_local_result.stat.pw_name != 'root'
+    - rc_local_result.stat.gr_name != 'root'
+    - rc_local_result.stat.mode != '0777'
+
+# Before inserting block, will backup the file (with timestamp) if already exists and if file doesn't exist will create the file
+- name: Insert block of commands into /root/script.sh
+  blockinfile:
+    path: /root/script.sh
+    backup: yes
+    create: yes
+    owner: root
+    group: root
+    mode: 0777
+    block: |
+      cp -p /etc/pam.d/system-auth.bak /etc/pam.d/system-auth
+      cp -p /etc/pam.d/password-auth.bak /etc/pam.d/password-auth
+      cp -p /etc/issue.net.bak /etc/issue.net
+      cp -p /etc/issue.bak /etc/issue
+      cp -p /etc/motd.bak /etc/motd
+      cp -p /etc/security/access.conf.bak /etc/security/access.conf
+  when: repo_result.stdout == ""
+
+# Adds this line at EOF if it does not exist
+- name: Appened line to /etc/rc.local
+  lineinfile:
+    path: /etc/rc.local
+    line: 'sh /root/script.sh &'
+  when: repo_result.stdout == ""
+
+# Perform Upgrade  
+- name: yum upgrade
+  command:  yum upgrade -y
+  when: repo_result.stdout == ""
+
+- name: Reboot
+  shell: reboot
+  async: 0
+  poll: 0
+  when: repo_result.stdout == ""
+
+- name: Wait for host to come back
+  local_action: wait_for host={{ ansible_ssh_host }} state=started
+  when: repo_result.stdout == ""
+
+# Post Upgrade steps
+- name: Remove files if they are present
+  file:
+    src: "{{ item }}"
+    state: absent
+  with_fileglob:
+    - "/etc/yum.repos.s/CentOS*.repo"
+    - "/etc/yum.repos.s/pub*.repo"
+  when: repo_result.stdout == ""
+

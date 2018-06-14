@@ -1,0 +1,4 @@
+---
+- name: Upgrade to OEL 6.9
+  debug:
+    msg: "Ansible distribution version for this host is:  {{ ansible_distribution_version }}"

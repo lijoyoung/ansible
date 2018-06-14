@@ -1,0 +1,74 @@
+---
+- hosts: rhel
+  vars:
+    ci_name: lnux100
+    os: ''
+
+  tasks:
+    - debug:
+            msg: "The ansible_host is - {{ ansible_host }}"   
+
+    - name: Gacther fact before upgrade
+      setup: filter='ansible_distribution_version'
+      register: version_before_update
+
+    - debug: var=version_before_update
+
+    # Perform Upgrade
+    - name: Performing yum upgrade
+      yum:
+        name: '*'
+        state: latest
+
+    - name: Gather facts after upgrade
+      setup: #filter='ansible_distribution_version'
+      # register: facts_after_update
+
+    - debug: var=ansible_distribution_version
+
+    # Set the OS variable according to recent facts    
+    - set_fact: os='Linux Red Hat'
+      when: ansible_distribution == "RedHat"
+    - set_fact: os='Linux SuSE'
+      when: ansible_distribution == "CentOS"
+    - set_fact: os='Linux Fedora'
+      when: ansible_distribution == "Oracle"
+
+    - debug: var=os
+
+    - name: Update the CI
+      snow_record:
+        username: admin
+        password: Truelies#1
+        instance: dev60038
+        state: present
+        number: "{{ ci_name }}"
+        table: cmdb_ci_server
+        lookup_field: name
+        data:
+          os : "{{ os }}"
+          os_version : "{{ ansible_distribution_version }}"
+          os_service_pack : "{{ ansible_distribution_release }}"
+          mac_address : "{{ ansible_machine_id }}"
+      delegate_to: localhost
+      register: CI_update
+
+    - debug: var=CI_update
+
+    - name: Create a new change request
+      snow_record:
+        username: admin
+        password: Truelies#1
+        instance: dev60038
+        state: present
+        table: change_request
+        data:
+          cmdb_ci : "{{ ci_name }}"
+          category : "Server Reboot"
+          short_description : "Please reboot, server upgrade complete"
+          priority : 4
+          type: normal
+      delegate_to: localhost
+      register: new_change_request
+
+    - debug: var=new_change_request

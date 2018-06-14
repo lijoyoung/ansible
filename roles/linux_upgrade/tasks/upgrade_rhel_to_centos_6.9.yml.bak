@@ -1,0 +1,69 @@
+---
+- name: Upgrade RHEL to CentOS 6.9
+  debug:
+    msg: "Ansible distribution version for this host is:  {{ ansible_distribution_version }}"
+
+# Unregister and Register to katello
+- name: Unregister and Register to katello
+  shell: |
+    set timeout 300
+
+    LNAME='hostname --fqdn'
+    KEY=acxrhel6.7
+    subscription-manager unregister
+    rm -rf /etc/sysconfig/rhn/systemid
+    yum clean all
+    rpm -ivh http://dscaprv01/pub/katello-ca-consumer-dscaprv01.corp.acxiom.net-1.0-1.noarch.rpm
+    subscription-manager register --org="acxiom" --name="$LNAME" --activationkey="$KEY"
+
+    exit 0
+  args:
+    executable: /bin/bash
+
+# Erase unwanted RHEL packages
+- name: Erase RHEL packages
+  command: "rpm -e --nodeps {{ item }}"
+  with_items:
+    - rhncfg-actions-5.10.74-8.el6sat.noarch
+    - rhncfg-5.10.74-8.el6sat.noarch
+    - rhncfg-client-5.10.74-8.el6sat.noarch
+    - rhel_6_post_A-1.0-2.x86_64
+    - rhel_post_B-1.0-2.noarch
+
+# Create backup directory if it doesn't exist
+- name: Create backup directory
+  file:
+    path: /tmp/bkp_upgrade
+    state: directory
+    mode: 0755
+
+# Backup files to be restored after upgrade
+- name: Backup files to be restored after upgrade
+  copy:
+    src: "{{ item }}"
+    dest: /tmp/bkp_upgrade
+    # owner: root
+    # group: root
+    # mode: 0755
+    remote_src: yes
+  with_items:
+    - /etc/pam.d/system-auth
+    - /etc/pam.d/password-auth
+    - /etc/issue.net
+    - /etc/issue
+    - /etc/motd
+    - /etc/security/access.conf
+
+# Perform Upgrade  
+- name: yum upgrade
+  command:  yum upgrade -y
+
+- name: Reboot
+  shell: reboot
+  async: 0
+  poll: 0
+
+- name: Wait for host to come back
+  local_action: wait_for host={{ ansible_ssh_host }} state=started
+
+# Post Upgrade steps TBD
